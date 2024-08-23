@@ -56,6 +56,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.material)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -66,10 +67,12 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
+            implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.teogor.sudoklify.common)
             implementation(libs.teogor.sudoklify.core)
             implementation(libs.teogor.sudoklify.ktx)
             implementation(libs.teogor.sudoklify.seeds)
+            implementation(libs.kotlinx.datetime)
             api(libs.material.kolor)
         }
         desktopMain.dependencies {
