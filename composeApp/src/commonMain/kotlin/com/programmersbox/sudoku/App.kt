@@ -55,9 +55,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.collections.forEach
 import kotlin.time.Duration.Companion.milliseconds
 
-fun nothing() {
-
-}
+fun nothing() = Unit
 
 @OptIn(ExperimentalSudoklifyApi::class)
 @Composable
