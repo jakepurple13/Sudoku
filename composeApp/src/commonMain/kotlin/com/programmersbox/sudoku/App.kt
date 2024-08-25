@@ -45,7 +45,6 @@ import dev.teogor.sudoklify.SudoklifyArchitect
 import dev.teogor.sudoklify.components.Difficulty
 import dev.teogor.sudoklify.components.Dimension
 import dev.teogor.sudoklify.components.Seed
-import dev.teogor.sudoklify.mapToSudokuString
 import dev.teogor.sudoklify.presets.loadPresetSchemas
 import dev.teogor.sudoklify.puzzle.SudokuPuzzle
 import dev.teogor.sudoklify.puzzle.SudokuSpec
@@ -153,7 +152,7 @@ fun App(
                                         else -> 0.dp
                                     }
                                 ),
-                                canModify = !number.given,
+                                canModify = !number.isPreset,
                                 onValueChange = { sudokuHandler.updateGrid(it, rowIndex, columnIndex) },
                                 modifier = Modifier
                                     .drawWithContent {
@@ -285,15 +284,18 @@ class SudokuHandler : ViewModel() {
         generatedGrid.clear()
         generatedGrid.addAll(
             puzzle.generateGridWithGivens()
-                .map { row ->
-                    row.map { number ->
-                        SudokuDigit(number, number != 0)
+                .mapIndexed { rowIndex, rowList ->
+                    rowList.mapIndexed { colIndex, number ->
+                        val solutionValue = puzzle.solution[rowIndex][colIndex]
+                        SudokuDigit(
+                            number = number,
+                            solution = solutionValue,
+                            isPreset = number != 0,
+                        )
                     }.toMutableStateList()
                 }
                 .toMutableStateList()
         )
-
-        puzzle.solution
 
         puzzle.solution.forEach {
             it.forEach {
@@ -304,7 +306,7 @@ class SudokuHandler : ViewModel() {
     }
 
     fun updateGrid(number: Int, row: Int, column: Int) {
-        generatedGrid[column][row] = SudokuDigit(number)
+        generatedGrid[column][row] = generatedGrid[column][row].copy(number = number)
 
         for (c in generatedGrid.indices) {
             for (r in generatedGrid[c].indices) {
@@ -328,7 +330,8 @@ class SudokuHandler : ViewModel() {
 
 data class SudokuDigit(
     val number: Int,
-    val given: Boolean = false,
+    val solution: Int,
+    val isPreset: Boolean = false,
 )
 
 fun ContentDrawScope.drawShape(
