@@ -2,8 +2,8 @@ package com.programmersbox.sudoku
 
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import dev.teogor.sudoklify.ktx.generateGridWithGivens
-import dev.teogor.sudoklify.ktx.mapToSudokuString
+import dev.teogor.sudoklify.mapToSudokuString
+import dev.teogor.sudoklify.puzzle.generateGridWithGivens
 
 fun main() = application {
     Window(
