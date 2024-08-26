@@ -224,8 +224,8 @@ fun App(
                                             drawShape(
                                                 px,
                                                 showBottomLine = false,
-                                                showTopLine = columnIndex % 3 == 0 && columnIndex != 0,
-                                                showLeftLine = rowIndex % 3 == 0 && rowIndex != 0,
+                                                showTopLine = columnIndex % sudokuHandler.dimension.boxHeight == 0 && columnIndex != 0,
+                                                showLeftLine = rowIndex % sudokuHandler.dimension.boxWidth == 0 && rowIndex != 0,
                                                 showRightLine = false,
                                             ),
                                             primary
