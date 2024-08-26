@@ -2,6 +2,7 @@ package com.programmersbox.sudoku
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
@@ -11,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
@@ -22,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
@@ -137,7 +141,17 @@ fun App(
             },
             bottomBar = {
                 BottomAppBar(
-                    actions = {},
+                    actions = {
+                        IconToggleButton(
+                            sudokuHandler.pencilIn,
+                            onCheckedChange = { sudokuHandler.pencilIn = it },
+                        ) {
+                            Icon(
+                                if (sudokuHandler.pencilIn) Icons.Default.Edit else Icons.Default.EditOff,
+                                null
+                            )
+                        }
+                    },
                     floatingActionButton = {
                         NumberHighlighter(
                             chosenDigit = sudokuHandler.highlightedDigit,
@@ -181,7 +195,25 @@ fun App(
                                     }
                                 ),
                                 canModify = !number.isPreset,
-                                onValueChange = { sudokuHandler.updateGrid(it, rowIndex, columnIndex) },
+                                penciled = sudokuHandler.penciledInMap[SudokuCell(columnIndex, rowIndex)].orEmpty(),
+                                onValueChange = {
+                                    if (sudokuHandler.pencilIn) {
+                                        sudokuHandler.penciledInMap[SudokuCell(columnIndex, rowIndex)]
+                                            .orEmpty()
+                                            .let { list ->
+                                                val newList = when (it) {
+                                                    0 -> emptyList()
+                                                    in list -> list - it
+                                                    !in list -> list + it
+                                                    else -> emptyList()
+                                                }
+
+                                                sudokuHandler.penciledInMap[SudokuCell(columnIndex, rowIndex)] = newList
+                                            }
+                                    } else {
+                                        sudokuHandler.updateGrid(it, rowIndex, columnIndex)
+                                    }
+                                },
                                 modifier = Modifier
                                     .drawWithContent {
                                         drawContent()
@@ -206,7 +238,7 @@ fun App(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun Digit(
     value: Int,
@@ -215,6 +247,7 @@ fun Digit(
     shape: Shape,
     canModify: Boolean,
     highlight: () -> Boolean,
+    penciled: List<Int>,
     modifier: Modifier = Modifier,
 ) {
     var showDropDown by remember { mutableStateOf(false) }
@@ -255,8 +288,33 @@ fun Digit(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxSize()
+                .padding(4.dp)
                 .sizeIn(48.dp, 48.dp),
         ) {
+            if (value == 0) {
+                penciled
+                    .sorted()
+                    .forEach {
+                        Text(
+                            it.toString(),
+                            fontSize = 8.sp,
+                            modifier = Modifier.align(
+                                when (it) {
+                                    1 -> Alignment.TopStart
+                                    2 -> Alignment.TopCenter
+                                    3 -> Alignment.TopEnd
+                                    4 -> Alignment.CenterStart
+                                    5 -> Alignment.Center
+                                    6 -> Alignment.CenterEnd
+                                    7 -> Alignment.BottomStart
+                                    8 -> Alignment.BottomCenter
+                                    9 -> Alignment.BottomEnd
+                                    else -> Alignment.Center
+                                }
+                            )
+                        )
+                    }
+            }
             Text(
                 value.takeIf { it != 0 }?.toString() ?: "",
                 fontSize = 24.sp,
@@ -344,6 +402,7 @@ class SudokuHandler : ViewModel() {
     }
 
     var difficulty by mutableStateOf(Difficulty.EASY)
+    var pencilIn by mutableStateOf(false)
 
     lateinit var puzzle: SudokuPuzzle
 
@@ -362,6 +421,8 @@ class SudokuHandler : ViewModel() {
     }
 
     val generatedGrid: SnapshotStateList<SnapshotStateList<SudokuDigit>> = mutableStateListOf()
+
+    val penciledInMap = mutableStateMapOf<SudokuCell, List<Int>>()
 
     init {
         snapshotFlow { hasWon }
@@ -382,6 +443,8 @@ class SudokuHandler : ViewModel() {
     ) {
         time = 0
         hasWon = false
+
+        penciledInMap.clear()
 
         sudokuSpec = SudokuSpec {
             seed = Seed.Random()
@@ -445,6 +508,11 @@ data class SudokuDigit(
     val number: Int,
     val solution: Int,
     val isPreset: Boolean = false,
+)
+
+data class SudokuCell(
+    val row: Int,
+    val col: Int,
 )
 
 fun ContentDrawScope.drawShape(
