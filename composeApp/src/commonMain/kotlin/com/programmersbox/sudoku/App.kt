@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -60,6 +62,7 @@ import dev.teogor.sudoklify.puzzle.SudokuSpec
 import dev.teogor.sudoklify.puzzle.generateGridWithGivens
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.collections.forEach
 import kotlin.time.Duration.Companion.milliseconds
@@ -363,6 +366,16 @@ fun NumberHighlighter(
     onValueChange: (Int) -> Unit,
 ) {
     var showDropDown by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(
+        initialPage = chosenDigit,
+        initialPageOffsetFraction = 0f
+    ) { digits.size + 1 }
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }
+            .collect { onValueChange(it) }
+    }
 
     DropdownMenu(
         expanded = showDropDown,
@@ -372,6 +385,7 @@ fun NumberHighlighter(
             text = { Text("Clear") },
             onClick = {
                 onValueChange(0)
+                scope.launch { pagerState.scrollToPage(0) }
                 showDropDown = false
             },
         )
@@ -380,17 +394,22 @@ fun NumberHighlighter(
                 text = { Text(grade.toString()) },
                 onClick = {
                     onValueChange(grade)
+                    scope.launch { pagerState.scrollToPage(grade) }
                     showDropDown = false
                 },
             )
         }
     }
 
-    ExtendedFloatingActionButton(
-        onClick = { showDropDown = !showDropDown },
-        text = { Text(chosenDigit.toString()) },
-        icon = { Text("Highlight") }
-    )
+    VerticalPager(
+        state = pagerState
+    ) {
+        ExtendedFloatingActionButton(
+            onClick = { showDropDown = !showDropDown },
+            text = { Text(it.toString()) },
+            icon = { Text("Highlight") }
+        )
+    }
 }
 
 @OptIn(ExperimentalSudoklifyApi::class)
