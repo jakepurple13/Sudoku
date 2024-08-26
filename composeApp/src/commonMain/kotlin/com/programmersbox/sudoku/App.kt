@@ -1,5 +1,6 @@
 package com.programmersbox.sudoku
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -8,20 +9,22 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -59,10 +62,11 @@ import kotlin.collections.forEach
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
 fun App(
-    sudokuHandler: SudokuHandler = viewModel(),
+    sudokuHandler: SudokuHandler = viewModel { SudokuHandler() },
 ) {
     val windowInfo = LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(windowInfo) {
@@ -80,11 +84,11 @@ fun App(
 
         if (showDialog) {
             AlertDialog(
-                onDismissRequest = {},
+                onDismissRequest = { showDialog = false },
                 title = { Text("Are you sure?") },
                 text = { Text("You will lose all your progress.") },
                 confirmButton = {
-                    Button(
+                    TextButton(
                         onClick = {
                             showDialog = false
                             sudokuHandler.generateGrid()
@@ -94,7 +98,7 @@ fun App(
                     }
                 },
                 dismissButton = {
-                    Button(onClick = { showDialog = false }) {
+                    TextButton(onClick = { showDialog = false }) {
                         Text("Not yet")
                     }
                 }
@@ -102,19 +106,28 @@ fun App(
         }
 
         Scaffold(
-            bottomBar = {
-                BottomAppBar(
-                    actions = {
-                        Text(sudokuHandler.timeText)
-                    },
-                    floatingActionButton = {
-                        ExtendedFloatingActionButton(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Sudoku") },
+                    actions = { Text(sudokuHandler.timeText) },
+                    navigationIcon = {
+                        IconButton(
                             onClick = {
                                 if (sudokuHandler.hasWon) sudokuHandler.generateGrid()
                                 else showDialog = true
-                            },
-                            text = { Text("New Game") },
-                            icon = { Icon(Icons.Filled.Refresh, contentDescription = "New Game") },
+                            }
+                        ) { Icon(Icons.Default.Add, null) }
+                    }
+                )
+            },
+            bottomBar = {
+                BottomAppBar(
+                    actions = {},
+                    floatingActionButton = {
+                        NumberHighlighter(
+                            chosenDigit = sudokuHandler.highlightedDigit,
+                            digits = (1..sudokuHandler.sudokuSpec.sudokuType.uniqueDigitsCount).toList(),
+                            onValueChange = { sudokuHandler.highlightedDigit = it }
                         )
                     }
                 )
@@ -133,6 +146,7 @@ fun App(
                             Digit(
                                 value = number.number,
                                 digits = (1..sudokuHandler.sudokuSpec.sudokuType.uniqueDigitsCount).toList(),
+                                highlight = { number.number == sudokuHandler.highlightedDigit && number.number != 0 },
                                 shape = RoundedCornerShape(
                                     topStart = when {
                                         columnIndex == 0 && rowIndex == 0 -> 24.dp
@@ -168,7 +182,6 @@ fun App(
                                         )
                                     }
                                     .fillMaxSize()
-                                //.sizeIn(48.dp, 48.dp)
                             )
                         }
                     }
@@ -186,6 +199,7 @@ fun Digit(
     onValueChange: (Int) -> Unit,
     shape: Shape,
     canModify: Boolean,
+    highlight: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     var showDropDown by remember { mutableStateOf(false) }
@@ -193,6 +207,12 @@ fun Digit(
     OutlinedCard(
         onClick = { if (canModify) showDropDown = true },
         shape = shape,
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = animateColorAsState(
+                if (highlight()) MaterialTheme.colorScheme.secondary
+                else Color.Unspecified
+            ).value
+        ),
         modifier = modifier
     ) {
         DropdownMenu(
@@ -218,7 +238,8 @@ fun Digit(
         }
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
                 .sizeIn(48.dp, 48.dp),
         ) {
             Text(
@@ -231,6 +252,43 @@ fun Digit(
     }
 }
 
+@Composable
+fun NumberHighlighter(
+    chosenDigit: Int,
+    digits: List<Int>,
+    onValueChange: (Int) -> Unit,
+) {
+    var showDropDown by remember { mutableStateOf(false) }
+
+    DropdownMenu(
+        expanded = showDropDown,
+        onDismissRequest = { showDropDown = false },
+    ) {
+        DropdownMenuItem(
+            text = { Text("Clear") },
+            onClick = {
+                onValueChange(0)
+                showDropDown = false
+            },
+        )
+        digits.forEach { grade ->
+            DropdownMenuItem(
+                text = { Text(grade.toString()) },
+                onClick = {
+                    onValueChange(grade)
+                    showDropDown = false
+                },
+            )
+        }
+    }
+
+    ExtendedFloatingActionButton(
+        onClick = { showDropDown = !showDropDown },
+        text = { Text(chosenDigit.toString()) },
+        icon = { Text("Highlight") }
+    )
+}
+
 class SudokuHandler : ViewModel() {
     var sudokuSpec = sudokuParamsBuilder {
         sudokuType { SudokuType.Sudoku9x9 }
@@ -239,6 +297,9 @@ class SudokuHandler : ViewModel() {
         seeds { combinedSeeds }
     }
 
+    var highlightedDigit by mutableIntStateOf(0)
+
+    var hasWon by mutableStateOf(false)
     private val stopwatch = Stopwatch(tick = 1L)
     private var time by mutableLongStateOf(0)
     private val minutes by derivedStateOf { time.milliseconds.inWholeMinutes }
@@ -258,8 +319,6 @@ class SudokuHandler : ViewModel() {
             .onEach { time++ }
             .launchIn(viewModelScope)
     }
-
-    var hasWon by mutableStateOf(false)
 
     var puzzle: SudokuPuzzle = sudokuSpec.createPuzzle()
 
