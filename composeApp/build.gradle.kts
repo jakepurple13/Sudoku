@@ -70,8 +70,9 @@ kotlin {
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.teogor.sudoklify.common)
             implementation(libs.teogor.sudoklify.core)
-            implementation(libs.teogor.sudoklify.ktx)
-            implementation(libs.teogor.sudoklify.seeds)
+            implementation(libs.teogor.sudoklify.io)
+            implementation(libs.teogor.sudoklify.presets)
+            implementation(libs.teogor.sudoklify.tokenizer)
             implementation(libs.kotlinx.datetime)
             api(libs.material.kolor)
         }

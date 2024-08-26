@@ -40,25 +40,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.materialkolor.DynamicMaterialTheme
-import dev.teogor.sudoklify.common.model.SudokuPuzzle
-import dev.teogor.sudoklify.common.types.Difficulty
-import dev.teogor.sudoklify.common.types.SudokuType
-import dev.teogor.sudoklify.core.generation.createPuzzle
-import dev.teogor.sudoklify.core.generation.difficulty
-import dev.teogor.sudoklify.core.generation.seed
-import dev.teogor.sudoklify.core.generation.seeds
-import dev.teogor.sudoklify.core.generation.sudokuParamsBuilder
-import dev.teogor.sudoklify.core.generation.sudokuType
-import dev.teogor.sudoklify.ktx.generateGridWithGivens
-import dev.teogor.sudoklify.ktx.toSeed
-import dev.teogor.sudoklify.seeds.combinedSeeds
+import dev.teogor.sudoklify.ExperimentalSudoklifyApi
+import dev.teogor.sudoklify.SudoklifyArchitect
+import dev.teogor.sudoklify.components.Difficulty
+import dev.teogor.sudoklify.components.Dimension
+import dev.teogor.sudoklify.components.Seed
+import dev.teogor.sudoklify.presets.loadPresetSchemas
+import dev.teogor.sudoklify.puzzle.SudokuPuzzle
+import dev.teogor.sudoklify.puzzle.SudokuSpec
+import dev.teogor.sudoklify.puzzle.generateGridWithGivens
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.collections.forEach
-import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
+fun nothing() = Unit
+
+@OptIn(ExperimentalSudoklifyApi::class)
 @Composable
 @Preview
 fun App(
@@ -80,7 +79,7 @@ fun App(
 
         if (showDialog) {
             AlertDialog(
-                onDismissRequest = {},
+                onDismissRequest = ::nothing,
                 title = { Text("Are you sure?") },
                 text = { Text("You will lose all your progress.") },
                 confirmButton = {
@@ -132,7 +131,7 @@ fun App(
                         item {
                             Digit(
                                 value = number.number,
-                                digits = (1..sudokuHandler.sudokuSpec.sudokuType.uniqueDigitsCount).toList(),
+                                digits = (1..sudokuHandler.dimension.uniqueDigitsCount).toList(),
                                 shape = RoundedCornerShape(
                                     topStart = when {
                                         columnIndex == 0 && rowIndex == 0 -> 24.dp
@@ -151,7 +150,7 @@ fun App(
                                         else -> 0.dp
                                     }
                                 ),
-                                canModify = !number.given,
+                                canModify = !number.isPreset,
                                 onValueChange = { sudokuHandler.updateGrid(it, rowIndex, columnIndex) },
                                 modifier = Modifier
                                     .drawWithContent {
@@ -231,13 +230,14 @@ fun Digit(
     }
 }
 
+@OptIn(ExperimentalSudoklifyApi::class)
 class SudokuHandler : ViewModel() {
-    var sudokuSpec = sudokuParamsBuilder {
-        sudokuType { SudokuType.Sudoku9x9 }
-        difficulty { Difficulty.EASY }
-        seed { Random.nextLong(0, Long.MAX_VALUE).toSeed() }
-        seeds { combinedSeeds }
-    }
+    private val architect = SudoklifyArchitect { loadPresetSchemas() }
+    private lateinit var sudokuSpec: SudokuSpec
+    lateinit var puzzle: SudokuPuzzle
+
+    val dimension: Dimension = Dimension.NineByNine
+    val size = dimension.uniqueDigitsCount - 1
 
     private val stopwatch = Stopwatch(tick = 1L)
     private var time by mutableLongStateOf(0)
@@ -246,6 +246,10 @@ class SudokuHandler : ViewModel() {
     val timeText by derivedStateOf {
         "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
     }
+
+    var hasWon by mutableStateOf(false)
+
+    val generatedGrid: SnapshotStateList<SnapshotStateList<SudokuDigit>> = mutableStateListOf()
 
     init {
         snapshotFlow { hasWon }
@@ -257,17 +261,7 @@ class SudokuHandler : ViewModel() {
         stopwatch.time
             .onEach { time++ }
             .launchIn(viewModelScope)
-    }
 
-    var hasWon by mutableStateOf(false)
-
-    var puzzle: SudokuPuzzle = sudokuSpec.createPuzzle()
-
-    val generatedGrid: SnapshotStateList<SnapshotStateList<SudokuDigit>> = mutableStateListOf()
-
-    var size = sudokuSpec.sudokuType.gridSize.height * sudokuSpec.sudokuType.gridSize.width - 1
-
-    init {
         generateGrid()
     }
 
@@ -276,23 +270,27 @@ class SudokuHandler : ViewModel() {
     ) {
         time = 0
         hasWon = false
-        sudokuSpec = sudokuParamsBuilder {
-            sudokuType { SudokuType.Sudoku9x9 }
-            difficulty { difficulty }
-            seed { Random.nextLong(0, Long.MAX_VALUE).toSeed() }
-            seeds { combinedSeeds }
+
+        sudokuSpec = SudokuSpec {
+            seed = Seed.Random()
+            type = Dimension.NineByNine
+            this.difficulty = difficulty
         }
-        size = sudokuSpec.sudokuType.gridSize.height * sudokuSpec.sudokuType.gridSize.width - 1
-        puzzle = sudokuSpec.createPuzzle()
+
+        puzzle = architect.constructSudoku(sudokuSpec)
+
         generatedGrid.clear()
         generatedGrid.addAll(
-            sudokuSpec
-                .createPuzzle()
-                .generateGridWithGivens()
-                .map {
-                    it
-                        .map { SudokuDigit(it, it != 0) }
-                        .toMutableStateList()
+            puzzle.generateGridWithGivens()
+                .mapIndexed { rowIndex, rowList ->
+                    rowList.mapIndexed { colIndex, number ->
+                        val solutionValue = puzzle.solution[rowIndex][colIndex]
+                        SudokuDigit(
+                            number = number,
+                            solution = solutionValue,
+                            isPreset = number != 0,
+                        )
+                    }.toMutableStateList()
                 }
                 .toMutableStateList()
         )
@@ -306,7 +304,7 @@ class SudokuHandler : ViewModel() {
     }
 
     fun updateGrid(number: Int, row: Int, column: Int) {
-        generatedGrid[column][row] = SudokuDigit(number)
+        generatedGrid[column][row] = generatedGrid[column][row].copy(number = number)
 
         for (c in generatedGrid.indices) {
             for (r in generatedGrid[c].indices) {
@@ -330,7 +328,8 @@ class SudokuHandler : ViewModel() {
 
 data class SudokuDigit(
     val number: Int,
-    val given: Boolean = false,
+    val solution: Int,
+    val isPreset: Boolean = false,
 )
 
 fun ContentDrawScope.drawShape(
