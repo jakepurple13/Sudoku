@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CardDefaults
@@ -105,7 +107,24 @@ fun App(
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text("Sudoku") },
-                    actions = { Text(sudokuHandler.timeText) },
+                    actions = {
+                        Text(sudokuHandler.timeText)
+
+                        var showDropDown by remember { mutableStateOf(false) }
+
+                        DropdownMenu(
+                            expanded = showDropDown,
+                            onDismissRequest = { showDropDown = false },
+                        ) {
+                            DifficultyChooser(
+                                difficulty = sudokuHandler.difficulty,
+                                onDifficultyChange = { sudokuHandler.difficulty = it },
+                            )
+                        }
+                        IconButton(
+                            onClick = { showDropDown = !showDropDown }
+                        ) { Icon(Icons.Default.MoreVert, null) }
+                    },
                     navigationIcon = {
                         IconButton(
                             onClick = {
@@ -249,6 +268,37 @@ fun Digit(
 }
 
 @Composable
+fun DifficultyChooser(
+    difficulty: Difficulty,
+    onDifficultyChange: (Difficulty) -> Unit,
+) {
+    var showDropDown by remember { mutableStateOf(false) }
+
+    DropdownMenu(
+        expanded = showDropDown,
+        onDismissRequest = { showDropDown = false },
+    ) {
+        Difficulty.entries.forEach {
+            DropdownMenuItem(
+                text = { Text(it.name) },
+                onClick = {
+                    onDifficultyChange(it)
+                    showDropDown = false
+                },
+                leadingIcon = {
+                    if (difficulty == it) Icon(Icons.Default.Check, null)
+                }
+            )
+        }
+    }
+
+    DropdownMenuItem(
+        text = { Text(difficulty.name) },
+        onClick = { showDropDown = true },
+    )
+}
+
+@Composable
 fun NumberHighlighter(
     chosenDigit: Int,
     digits: List<Int>,
@@ -293,6 +343,8 @@ class SudokuHandler : ViewModel() {
         type = Dimension.NineByNine
     }
 
+    var difficulty by mutableStateOf(Difficulty.EASY)
+
     lateinit var puzzle: SudokuPuzzle
 
     var dimension = sudokuSpec.type
@@ -326,7 +378,7 @@ class SudokuHandler : ViewModel() {
     }
 
     fun generateGrid(
-        difficulty: Difficulty = Difficulty.EASY,
+        difficulty: Difficulty = this.difficulty,
     ) {
         time = 0
         hasWon = false
