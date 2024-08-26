@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
@@ -48,12 +49,16 @@ import dev.teogor.sudoklify.SudoklifyArchitect
 import dev.teogor.sudoklify.components.Difficulty
 import dev.teogor.sudoklify.components.Dimension
 import dev.teogor.sudoklify.components.Seed
+import dev.teogor.sudoklify.mapToSudokuBoard
+import dev.teogor.sudoklify.mapToSudokuString
 import dev.teogor.sudoklify.presets.loadPresetSchemas
 import dev.teogor.sudoklify.puzzle.SudokuPuzzle
 import dev.teogor.sudoklify.puzzle.SudokuSpec
 import dev.teogor.sudoklify.puzzle.generateGridWithGivens
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.collections.forEach
 import kotlin.time.Duration.Companion.milliseconds
@@ -62,7 +67,8 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 @Preview
 fun App(
-    sudokuHandler: SudokuHandler = viewModel { SudokuHandler() },
+    settings: Settings = remember { Settings { "" } },
+    sudokuHandler: SudokuHandler = viewModel { SudokuHandler(settings) },
 ) {
     val windowInfo = LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(windowInfo) {
@@ -76,6 +82,8 @@ fun App(
         val primary = MaterialTheme.colorScheme.primary
         val px = with(LocalDensity.current) { CardDefaults.outlinedCardBorder().width.toPx() }
 
+        val difficulty by settings.difficultyFlow().collectAsState(Difficulty.EASY)
+
         var showDialog by remember(sudokuHandler.hasWon) { mutableStateOf(sudokuHandler.hasWon) }
 
         if (showDialog) {
@@ -87,7 +95,7 @@ fun App(
                     TextButton(
                         onClick = {
                             showDialog = false
-                            sudokuHandler.generateGrid()
+                            sudokuHandler.generateGrid(difficulty)
                         }
                     ) {
                         Text("New Game")
@@ -109,7 +117,7 @@ fun App(
                     navigationIcon = {
                         IconButton(
                             onClick = {
-                                if (sudokuHandler.hasWon) sudokuHandler.generateGrid()
+                                if (sudokuHandler.hasWon) sudokuHandler.generateGrid(difficulty)
                                 else showDialog = true
                             }
                         ) { Icon(Icons.Default.Add, null) }
@@ -118,7 +126,12 @@ fun App(
             },
             bottomBar = {
                 BottomAppBar(
-                    actions = {},
+                    actions = {
+                        Button(
+                            onClick = sudokuHandler::clearAll
+                        ) { Text("Clear All") }
+                        Text(difficulty.name)
+                    },
                     floatingActionButton = {
                         NumberHighlighter(
                             chosenDigit = sudokuHandler.highlightedDigit,
@@ -286,7 +299,9 @@ fun NumberHighlighter(
 }
 
 @OptIn(ExperimentalSudoklifyApi::class)
-class SudokuHandler : ViewModel() {
+class SudokuHandler(
+    private val settings: Settings = Settings { "" },
+) : ViewModel() {
     private val architect = SudoklifyArchitect { loadPresetSchemas() }
     private var sudokuSpec: SudokuSpec = SudokuSpec {
         seed = Seed.Random()
@@ -322,7 +337,30 @@ class SudokuHandler : ViewModel() {
             .onEach { time++ }
             .launchIn(viewModelScope)
 
-        generateGrid()
+        viewModelScope.launch {
+            val gameBoard = settings.gameBoardFlow().firstOrNull()
+            val difficulty = settings.difficultyFlow().firstOrNull() ?: Difficulty.EASY
+            if (gameBoard != null) {
+                puzzle = architect.constructSudoku(sudokuSpec)
+                generatedGrid.addAll(
+                    gameBoard
+                        .mapToSudokuBoard(dimension)
+                        .mapIndexed { rowIndex, rowList ->
+                            rowList.mapIndexed { colIndex, number ->
+                                val solutionValue = puzzle.solution[rowIndex][colIndex]
+                                SudokuDigit(
+                                    number = number,
+                                    solution = solutionValue,
+                                    isPreset = number != 0,
+                                )
+                            }.toMutableStateList()
+                        }
+                        .toMutableStateList()
+                )
+            } else {
+                generateGrid(difficulty)
+            }
+        }
     }
 
     fun generateGrid(
@@ -344,7 +382,8 @@ class SudokuHandler : ViewModel() {
 
         generatedGrid.clear()
         generatedGrid.addAll(
-            puzzle.generateGridWithGivens()
+            puzzle
+                .generateGridWithGivens()
                 .mapIndexed { rowIndex, rowList ->
                     rowList.mapIndexed { colIndex, number ->
                         val solutionValue = puzzle.solution[rowIndex][colIndex]
@@ -358,6 +397,10 @@ class SudokuHandler : ViewModel() {
                 .toMutableStateList()
         )
 
+        viewModelScope.launch {
+            settings.updateGameBoard(generatedGrid.mapToSudokuString { number })
+        }
+
         puzzle.solution.forEach {
             it.forEach {
                 print("$it ")
@@ -369,6 +412,15 @@ class SudokuHandler : ViewModel() {
     fun updateGrid(number: Int, row: Int, column: Int) {
         generatedGrid[column][row] = generatedGrid[column][row].copy(number = number)
 
+        viewModelScope.launch {
+            settings.updateGameBoard(generatedGrid.mapToSudokuString { number })
+        }
+
+        /*Difficulty.entries*/
+        /*generatedGrid
+            .mapToSudokuString { this.number }
+            .mapToSudokuBoard()*/
+
         for (c in generatedGrid.indices) {
             for (r in generatedGrid[c].indices) {
                 if (generatedGrid[c][r].number != puzzle.solution[c][r]) {
@@ -377,6 +429,16 @@ class SudokuHandler : ViewModel() {
             }
         }
         hasWon = true
+    }
+
+    fun clearAll() {
+        for (c in generatedGrid.indices) {
+            for (r in generatedGrid[c].indices) {
+                if (!generatedGrid[c][r].isPreset) {
+                    generatedGrid[c][r] = generatedGrid[c][r].copy(number = 0)
+                }
+            }
+        }
     }
 
     fun pauseTimer() {

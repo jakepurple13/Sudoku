@@ -57,6 +57,8 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.material)
+            api(libs.datastore.core)
+            api(libs.datastore.preferences)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -79,6 +81,13 @@ kotlin {
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
+            api(libs.datastore.core)
+            api(libs.datastore.preferences)
+        }
+
+        iosMain.dependencies {
+            api(libs.datastore.core)
+            api(libs.datastore.preferences)
         }
     }
 }
