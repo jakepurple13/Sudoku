@@ -58,8 +58,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.collections.forEach
 import kotlin.time.Duration.Companion.milliseconds
 
-@OptIn(ExperimentalSudoklifyApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalSudoklifyApi::class, ExperimentalMaterial3Api::class)
 @Composable
 @Preview
 fun App(
@@ -123,7 +122,7 @@ fun App(
                     floatingActionButton = {
                         NumberHighlighter(
                             chosenDigit = sudokuHandler.highlightedDigit,
-                            digits = (1..sudokuHandler.sudokuSpec.dimension.uniqueDigitsCount).toList(),
+                            digits = (1..sudokuHandler.dimension.uniqueDigitsCount).toList(),
                             onValueChange = { sudokuHandler.highlightedDigit = it }
                         )
                     }
@@ -289,11 +288,15 @@ fun NumberHighlighter(
 @OptIn(ExperimentalSudoklifyApi::class)
 class SudokuHandler : ViewModel() {
     private val architect = SudoklifyArchitect { loadPresetSchemas() }
-    private lateinit var sudokuSpec: SudokuSpec
+    private var sudokuSpec: SudokuSpec = SudokuSpec {
+        seed = Seed.Random()
+        type = Dimension.NineByNine
+    }
+
     lateinit var puzzle: SudokuPuzzle
 
-    val dimension: Dimension = Dimension.NineByNine
-    val size = dimension.uniqueDigitsCount - 1
+    var dimension = sudokuSpec.type
+    var size = dimension.uniqueDigitsCount - 1
 
     var highlightedDigit by mutableIntStateOf(0)
 
@@ -333,6 +336,9 @@ class SudokuHandler : ViewModel() {
             type = Dimension.NineByNine
             this.difficulty = difficulty
         }
+
+        dimension = sudokuSpec.type
+        size = dimension.uniqueDigitsCount - 1
 
         puzzle = architect.constructSudoku(sudokuSpec)
 
