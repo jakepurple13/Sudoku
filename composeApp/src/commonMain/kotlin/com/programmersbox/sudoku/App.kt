@@ -90,8 +90,15 @@ fun App(
         if (showDialog) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
-                title = { Text("Are you sure?") },
-                text = { Text("You will lose all your progress.") },
+                title = { Text(if (sudokuHandler.hasWon) "You Win!" else "Are you sure?") },
+                text = {
+                    Text(
+                        if (sudokuHandler.hasWon)
+                            "Play again and try to solve it faster next time!"
+                        else
+                            "You will lose all your progress."
+                    )
+                },
                 confirmButton = {
                     TextButton(
                         onClick = {
