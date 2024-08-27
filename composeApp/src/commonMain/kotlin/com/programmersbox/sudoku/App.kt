@@ -105,15 +105,9 @@ fun App(
                             showDialog = false
                             sudokuHandler.generateGrid()
                         }
-                    ) {
-                        Text("New Game")
-                    }
+                    ) { Text("New Game") }
                 },
-                dismissButton = {
-                    TextButton(onClick = { showDialog = false }) {
-                        Text("Not yet")
-                    }
-                }
+                dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Not yet") } }
             )
         }
 
@@ -157,8 +151,8 @@ fun App(
                             onCheckedChange = { sudokuHandler.pencilIn = it },
                         ) {
                             Icon(
-                                if (sudokuHandler.pencilIn) Icons.Default.Edit else Icons.Default.EditOff,
-                                null
+                                imageVector = if (sudokuHandler.pencilIn) Icons.Default.Edit else Icons.Default.EditOff,
+                                contentDescription = null
                             )
                         }
                     },
@@ -262,15 +256,24 @@ fun Digit(
 ) {
     var showDropDown by remember { mutableStateOf(false) }
 
+    val containerColor by animateColorAsState(
+        if (highlight()) MaterialTheme.colorScheme.secondary
+        else Color.Unspecified
+    )
+
     OutlinedCard(
-        onClick = { if (canModify) showDropDown = true },
+        onClick = { showDropDown = true },
+        enabled = canModify,
         shape = shape,
         colors = CardDefaults.outlinedCardColors(
-            containerColor = animateColorAsState(
-                if (highlight()) MaterialTheme.colorScheme.secondary
-                else Color.Unspecified
+            containerColor = containerColor,
+            disabledContainerColor = containerColor,
+            disabledContentColor = animateColorAsState(
+                if (highlight()) MaterialTheme.colorScheme.onSecondary
+                else MaterialTheme.colorScheme.onSurface
             ).value
         ),
+        border = CardDefaults.outlinedCardBorder(true),
         modifier = modifier
     ) {
         DropdownMenu(
